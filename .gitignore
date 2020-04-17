@@ -1,0 +1,14 @@
+bin/
+obj/
+vs/
+*.cbp
+*.depend
+*.layout
+*.bat
+*.ini
+*.sln
+*.vcxproj
+*.filters
+*.user
+
+

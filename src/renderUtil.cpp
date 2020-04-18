@@ -51,7 +51,7 @@ LoadShaderFromStrings(const char* VertexCode, const char* FragmentCode)
 
 // TODO: Pass Arena
 static u32
-LoadShaderFromFile(const char* Path)
+LoadShader(const char* Path)
 {
 	FILE* File;	
 	
@@ -78,6 +78,25 @@ LoadShaderFromFile(const char* Path)
 	Border[1] = '\0';
 
 	return LoadShaderFromStrings(AllCode, Border + 3); 
+}
+
+inline void
+SetUniform2f(u32 Shader, const char* Name, v2i Pos)
+{
+	glUniform2f(glGetUniformLocation(Shader, Name),
+	            cast<float>(Pos.X()), cast<float>(Pos.Y()));
+}
+
+inline void
+SetUniform1f(u32 Shader, const char* Name, u32 Value)
+{
+	glUniform1f(glGetUniformLocation(Shader, Name), cast<float>(Value)); 
+}
+
+inline void
+SetUniformMat4(u32 Shader, const char* Name, const mat4& Mat)
+{
+	glUniformMatrix4fv(glGetUniformLocation(Shader, Name), 1, GL_FALSE, Ptr(Mat));
 }
 
 static u32

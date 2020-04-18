@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdio>
+#include <cassert>
 
 using u8 = uint8_t;
 using u16 = uint16_t;
@@ -18,6 +19,7 @@ using b8 = bool;
 using b32 = uint32_t;
 
 #define cast static_cast
+#define rcast reinterpret_cast
 #define null nullptr
 #define global static
 
@@ -116,7 +118,7 @@ main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// create window
-	Window = glfwCreateWindow(ScreenWidth, ScreenHeight, "Learn OpenGL", glfwGetPrimaryMonitor(), null);
+	Window = glfwCreateWindow(ScreenWidth, ScreenHeight, "Learn OpenGL", null, null);
     if(!Window)
     {
 		puts("Failed to create GLFW window");

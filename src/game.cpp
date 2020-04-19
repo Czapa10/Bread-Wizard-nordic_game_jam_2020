@@ -30,11 +30,12 @@ struct bread
 struct mirror
 {
 	b32 Left;
+	b32 Red;
 };
 
 enum class entity_type
 {
-	Furnace, Bread, Box, Mirror, Switch
+	Furnace, Bread, Box, Mirror, GreenMirror, Switch
 };
 
 struct entity
@@ -83,6 +84,9 @@ global u32 WallTex;
 global u32 BoxTex;
 global u32 MirrorLeftTex;
 global u32 MirrorRightTex;
+global u32 RedMirrorLeftTex;
+global u32 RedMirrorRightTex;
+global u32 GreenMirrorTex;
 global u32 SwitchTex;
 
 global constexpr f32 BreadMovementDelay = 0.1f;
@@ -99,6 +103,8 @@ global char* Map = null;
 	B - box
 	L - left mirror
 	R - right mirror
+	l - red mirror left
+	r - red mirror right
 	S - mirror switch
 */
 
@@ -179,6 +185,28 @@ global char Map7[] =
 "wwwwwwwwFwwwwwww"
 "wwwwwwwwwwwwwwww";
 
+global char Map8[] = 
+"wwwwwwwwwwwwwwww"
+"wwwF....R...Fwww"
+"wwwwwwww.wwwwwww"
+"wwSwwwww.wwwwwww"
+"ww.ww...BP..Swww"
+"wwL...B.....Swww"
+"wwwwwwww.wwwwwww"
+"wwF.....L.....Fw"
+"wwwwwwwwwwwwwwww";
+
+global char Map9[] = 
+"wwwwwwwwwwwwwwww"
+"wwF..L..FwFwwwww"
+"wSwww.wwww.wwwww"
+"w.ww...P..L..wFw"
+"w.ww.R..ww...w.w"
+"wl.......G....Rw"
+"wwwww.wwww...w.w"
+"wwF..r....FwwwFw"
+"wwwwwwwwwwwwwwww";
+
 static void
 AddEntity(const entity& Entity)
 {
@@ -223,13 +251,24 @@ AddBoxEntity(v2i Pos)
 }
 
 static void
-AddMirrorEntity(v2i Pos, b32 Left)
+AddMirrorEntity(v2i Pos, b32 Left, b32 Red)
 {
 	entity Entity;
 	Entity.Pos = Pos;
 	Entity.Type = entity_type::Mirror;
 	Entity.Alive = true;
 	Entity.Mirror.Left = Left;
+	Entity.Mirror.Red = Red;
+	AddEntity(Entity);
+}
+
+static void
+AddGreenMirrorEntity(v2i Pos)
+{
+	entity Entity;
+	Entity.Pos = Pos;
+	Entity.Type = entity_type::GreenMirror;
+	Entity.Alive = true;
 	AddEntity(Entity);
 }
 
@@ -323,6 +362,18 @@ InitLevel(u32 Level)
 			Map = Map7;
 			Wizard.Rolls = 1;
 		} break;
+
+		case 8: {
+			Map = Map8;
+			Wizard.Breads = 1;
+			Wizard.Rolls = 2;
+		} break;
+
+		case 9: {
+			Map = Map9;
+			Wizard.Breads = 2;
+			Wizard.Rolls = 2;
+		} break;
 	}
 
 	TimeFromComletingLevel = 0.f;
@@ -363,11 +414,23 @@ InitLevel(u32 Level)
 					} break;
 
 					case 'L': {
-						AddMirrorEntity(V2i(X, Y), true);
+						AddMirrorEntity(V2i(X, Y), true, false);
 					} break;
 
 					case 'R': {
-						AddMirrorEntity(V2i(X, Y), false);
+						AddMirrorEntity(V2i(X, Y), false, false);
+					} break;
+
+					case 'l': {
+						AddMirrorEntity(V2i(X, Y), true, true);
+					} break;
+
+					case 'r': {
+						AddMirrorEntity(V2i(X, Y), false, true);
+					} break;
+
+					case 'G': {
+						AddGreenMirrorEntity(V2i(X, Y));
 					} break;
 
 					case 'S': {
@@ -389,6 +452,8 @@ InitLevel(u32 Level)
 static void
 InitApp()
 {
+	SoundEngine->play2D("resources/audio/Magic_tune.wav", true);
+
 	glClearColor(0.1f, 0.1f, 0.1f, 1.f);
 
 	glEnable(GL_BLEND);
@@ -413,6 +478,9 @@ InitApp()
 	BoxTex = LoadTexture("resources/textures/box.png");
 	MirrorLeftTex = LoadTexture("resources/textures/mirrorLeft.png");
 	MirrorRightTex = LoadTexture("resources/textures/mirrorRight.png");
+	RedMirrorLeftTex = LoadTexture("resources/textures/redMirrorLeft.png");
+	RedMirrorRightTex = LoadTexture("resources/textures/redMirrorRight.png");
+	GreenMirrorTex = LoadTexture("resources/textures/greenMirror.png");
 	SwitchTex = LoadTexture("resources/textures/switch.png");
 
 	World.Entities = cast<entity*>(malloc(MAX_ENTITIES * sizeof(entity)));
@@ -548,6 +616,12 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 						}
 					} break;
 
+					case entity_type::GreenMirror:
+					{
+						AddBreadEntity(Entity.Pos, V2i(Bread.Dir.Y(), Bread.Dir.X()), Bread.Type);
+						AddBreadEntity(Entity.Pos, V2i(-Bread.Dir.Y(), -Bread.Dir.X()), Bread.Type); 
+					} break;
+
 					case entity_type::Box:
 					{
 						RemoveEntity(BreadEntityIndex);
@@ -563,7 +637,10 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 							auto& Mirror = World.Entities[EntityIndex2];
 							if(Mirror.Type == entity_type::Mirror)
 							{	
-								Mirror.Mirror.Left = !Mirror.Mirror.Left;
+								if(!Mirror.Mirror.Red)
+								{
+									Mirror.Mirror.Left = !Mirror.Mirror.Left;
+								}
 							}
 						}
 					} break;
@@ -609,14 +686,34 @@ UpdateBox(entity& Entity)
 static void
 UpdateMirror(entity& Entity)
 {
-	if(Entity.Mirror.Left)
+	if(Entity.Mirror.Red)
 	{
-		DrawQuad(Entity.Pos, MirrorLeftTex);
+		if(Entity.Mirror.Left)
+		{
+			DrawQuad(Entity.Pos, RedMirrorLeftTex);
+		}
+		else
+		{
+			DrawQuad(Entity.Pos, RedMirrorRightTex);
+		}
 	}
 	else
 	{
-		DrawQuad(Entity.Pos, MirrorRightTex);
+		if(Entity.Mirror.Left)
+		{
+			DrawQuad(Entity.Pos, MirrorLeftTex);
+		}
+		else
+		{
+			DrawQuad(Entity.Pos, MirrorRightTex);
+		}
 	}
+}
+
+static void
+UpdateGreenMirror(entity& Entity)
+{
+	DrawQuad(Entity.Pos, GreenMirrorTex);
 }
 
 static void
@@ -690,7 +787,9 @@ UpdateAndRender()
 			    ++EntityIndex)
 			{
 				auto& Entity = World.Entities[EntityIndex];
-				if((Entity.Type == entity_type::Box || Entity.Type == entity_type::Mirror) &&
+				if((Entity.Type == entity_type::Box ||
+				    Entity.Type == entity_type::Mirror ||
+					Entity.Type == entity_type::GreenMirror) &&
 				   Entity.Pos == Wizard.Pos)
 				{
 					if(IsCollision(Entity.Pos + Wizard.Dir))
@@ -765,6 +864,7 @@ UpdateAndRender()
 			case entity_type::Furnace: UpdateFurnace(Entity); break;
 			case entity_type::Box: UpdateBox(Entity); break;
 			case entity_type::Mirror: UpdateMirror(Entity); break;
+			case entity_type::GreenMirror: UpdateGreenMirror(Entity); break;
 			case entity_type::Switch: UpdateSwitch(Entity); break;
 
 			default: assert(true);
@@ -777,14 +877,14 @@ UpdateAndRender()
 	i32 BreadUIX = 0;
 
 	for(i32 Bread = 0;
-	    Bread < Wizard.Breads;
+	    Bread < cast<i32>(Wizard.Breads);
 	    ++Bread, ++BreadUIX)
 	{
 		DrawQuad(V2i(BreadUIX, 0), BreadTex);
 	}
 
 	for(i32 Roll = 0;
-	    Roll < Wizard.Rolls;
+	    Roll < cast<i32>(Wizard.Rolls);
 		++Roll, ++BreadUIX)
 	{
 		DrawQuad(V2i(BreadUIX, 0), RollTex);
@@ -802,13 +902,13 @@ UpdateAndRender()
 		case 1: {
 			BeginTutorialWindow(700.f, 30.f);
 			ImGui::TextUnformatted("AWSD - Movement");
-			ImGui::TextUnformatted("1 - Cast bread spell");
+			ImGui::TextUnformatted("Num 1 - Cast bread spell");
 			ImGui::End();
 		} break;
 
 		case 6: {
 			BeginTutorialWindow(700.f, 30.f);
-			ImGui::TextUnformatted("2 - Cast roll spell");
+			ImGui::TextUnformatted("Num 2 - Cast roll spell");
 			ImGui::End();
 		} break;
 	}
@@ -821,7 +921,7 @@ UpdateAndRender()
 		ImGui::End();
 	}
 
-	#define EDITOR 1
+	#define EDITOR 1 
 	#if EDITOR
 	ImGui::Begin("Editor");
 	
@@ -842,7 +942,7 @@ UpdateAndRender()
 	}
 
 	for(u32 Level = 1;
-	    Level <= 7;
+	    Level <= 9;
 		++Level)
 	{
 		char Name[50];

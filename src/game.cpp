@@ -564,6 +564,7 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 		if(IsWall(Entity.Pos + Bread.Dir))
 		{
 			RemoveEntity(BreadEntityIndex);
+			SoundEngine->play2D("resources/audio/breadWallCollision.wav", false);
 			return;
 		}
 
@@ -600,6 +601,11 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 								TimeFromComletingLevel += Dt;
 							}
 							RemoveEntity(BreadEntityIndex);
+							SoundEngine->play2D("resources/audio/breadInFurnace.wav", false);
+						}
+						else
+						{
+							SoundEngine->play2D("resources/audio/breadWallCollision.wav", false);
 						}
 					} break;
 
@@ -614,17 +620,20 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 						{
 							Bread.Dir = V2i(-Bread.Dir.Y(), -Bread.Dir.X());
 						}
+						SoundEngine->play2D("resources/audio/breadMirrorCollision.wav", false);
 					} break;
 
 					case entity_type::GreenMirror:
 					{
 						AddBreadEntity(Entity.Pos, V2i(Bread.Dir.Y(), Bread.Dir.X()), Bread.Type);
 						AddBreadEntity(Entity.Pos, V2i(-Bread.Dir.Y(), -Bread.Dir.X()), Bread.Type); 
+						SoundEngine->play2D("resources/audio/breadMirrorCollision.wav", false);
 					} break;
 
 					case entity_type::Box:
 					{
 						RemoveEntity(BreadEntityIndex);
+						SoundEngine->play2D("resources/audio/breadWallCollision.wav", false);
 						return;
 					} break;
 					
@@ -643,6 +652,7 @@ UpdateBread(entity& Entity, u32 BreadEntityIndex)
 								}
 							}
 						}
+						SoundEngine->play2D("resources/audio/switch.wav", false);
 					} break;
 				}
 			}
@@ -814,6 +824,7 @@ UpdateAndRender()
 			--Wizard.Breads;
 			AddBreadEntity(Wizard.Pos, Wizard.Dir, bread::Normal);
 			Wizard.TimeFromSpellPressedKey = 0.f;
+			SoundEngine->play2D("resources/audio/spellCast.wav", false);
 		}
 		else if(glfwGetKey(Window, GLFW_KEY_2) == GLFW_PRESS && Wizard.Rolls > 0)
 		{
@@ -823,6 +834,7 @@ UpdateAndRender()
 			AddBreadEntity(Wizard.Pos, V2i(0, 1), bread::Roll);
 			AddBreadEntity(Wizard.Pos, V2i(0, -1), bread::Roll);
 			Wizard.TimeFromSpellPressedKey = 0.f;
+			SoundEngine->play2D("resources/audio/spellCast.wav", false);
 		}
 	}
 	else

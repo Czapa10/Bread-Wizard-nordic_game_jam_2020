@@ -118,7 +118,7 @@ main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// create window
-	Window = glfwCreateWindow(ScreenWidth, ScreenHeight, "Learn OpenGL", null, null);
+	Window = glfwCreateWindow(ScreenWidth, ScreenHeight, "Learn OpenGL", glfwGetPrimaryMonitor(), null);
     if(!Window)
     {
 		puts("Failed to create GLFW window");

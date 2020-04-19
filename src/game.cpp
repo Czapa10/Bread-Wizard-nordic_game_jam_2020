@@ -198,6 +198,28 @@ global char Map8[] =
 
 global char Map9[] = 
 "wwwwwwwwwwwwwwww"
+"wwFwF..G...FwFww"
+"ww.wwww.wwwww.ww"
+"ww.ww..B..www.ww"
+"wwG....P.B...Gww"
+"ww.ww.....www.ww"
+"ww.wwww.wwwww.ww"
+"wwFwF..G...FwFww"
+"wwwwwwwwwwwwwwww";
+
+global char Map10[] = 
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwF.......wwwww"
+"wwwwFwww.L...Rww"
+"wwww.www..Pww.ww"
+"wwwwR......wwFww"
+"wwww.wwwww.wwwww"
+"wwwwFwwwwwl.Swww"
+"wwwwwwwwwwwwwwww";
+
+global char Map11[] = 
+"wwwwwwwwwwwwwwww"
 "wwF..L..FwFwwwww"
 "wSwww.wwww.wwwww"
 "w.ww...P..L..wFw"
@@ -205,6 +227,17 @@ global char Map9[] =
 "wl.......G....Rw"
 "wwwww.wwww...w.w"
 "wwF..r....FwwwFw"
+"wwwwwwwwwwwwwwww";
+
+global char EndMap[] = 
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
+"wwwwwwwwwwwwwwww"
 "wwwwwwwwwwwwwwww";
 
 static void
@@ -326,6 +359,16 @@ InitLevel(u32 Level)
 	Wizard.Breads = 0;
 	Wizard.Rolls = 0;
 
+	TimeFromComletingLevel = 0.f;
+
+	Wizard.Dir = V2i(0, -1);
+	Wizard.CurrentTex = Wizard.BackTex; 
+
+	World.UsedEntities = 0;	
+	World.AllFurnaces = 0;
+	World.CompleteFurnaces = 0;
+	World.UsedWalls = 0;
+
 	switch(Level)
 	{
 		case 1: {
@@ -365,26 +408,32 @@ InitLevel(u32 Level)
 
 		case 8: {
 			Map = Map8;
-			Wizard.Breads = 1;
 			Wizard.Rolls = 2;
 		} break;
 
 		case 9: {
 			Map = Map9;
-			Wizard.Breads = 2;
 			Wizard.Rolls = 2;
 		} break;
+
+		case 10: {
+			Map = Map10;
+			Wizard.Breads = 1;
+			Wizard.Rolls = 2;
+		} break;
+
+		case 11: {
+			Map = Map11;
+			Wizard.Rolls = 2;
+		} break;
+
+		case 12: {
+			Map = EndMap;
+			Wizard.Dir = V2i(0, 1);
+			Wizard.CurrentTex = Wizard.FrontTex; 
+			Wizard.Pos = V2i(8, 1);
+		} break;
 	}
-
-	TimeFromComletingLevel = 0.f;
-
-	Wizard.Dir = V2i(0, -1);
-	Wizard.CurrentTex = Wizard.BackTex; 
-
-	World.UsedEntities = 0;	
-	World.AllFurnaces = 0;
-	World.CompleteFurnaces = 0;
-	World.UsedWalls = 0;
 
 	// draw tilemap
 	for(i32 Y = 0;
@@ -452,7 +501,7 @@ InitLevel(u32 Level)
 static void
 InitApp()
 {
-	SoundEngine->play2D("resources/audio/Magic_tune.wav", true);
+	SoundEngine->play2D("resources/audio/mainTheme.wav", true);
 
 	glClearColor(0.1f, 0.1f, 0.1f, 1.f);
 
@@ -808,6 +857,7 @@ UpdateAndRender()
 						break;
 					}
 					Entity.Pos += Wizard.Dir;
+					SoundEngine->play2D("resources/audio/boxMove.wav", false);
 				}
 			}
 		}
@@ -905,7 +955,7 @@ UpdateAndRender()
 	auto BeginTutorialWindow = [](f32 X, f32 Y, const char* Name = "Tutorial") 
 	{
 		ImGui::SetNextWindowPos({X, Y});
-		ImGui::Begin(Name, null, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBringToFrontOnFocus);
+		ImGui::Begin(Name, null, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
 		ImGui::SetWindowFontScale(3.f);
 	};
 
@@ -923,17 +973,36 @@ UpdateAndRender()
 			ImGui::TextUnformatted("Num 2 - Cast roll spell");
 			ImGui::End();
 		} break;
+
+		case 12: {
+			ImGui::SetNextWindowPos({200.f, 400.f});
+			ImGui::SetNextWindowSize({1500.f, 450.f});
+			ImGui::Begin("End", null, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
+			ImGui::SetWindowFontScale(4.f);
+			ImGui::TextUnformatted("Thanks for playing");
+			ImGui::TextUnformatted("");
+			ImGui::TextUnformatted("Game was made by:");
+			ImGui::TextUnformatted("Grzegorz \"Czapa\" Bednorz - Coding & Design & Graphics");
+			ImGui::TextUnformatted("Jerzy Wujczyk - Sound & Music");
+			ImGui::TextUnformatted("");
+			if(ImGui::Button("Exit game"))
+			{
+				glfwSetWindowShouldClose(Window, GLFW_TRUE);
+			}
+			ImGui::End();
+		} break;
 	}
 
 	if(Wizard.Breads == 0 && Wizard.Rolls == 0 &&
-	   TimeFromComletingLevel == 0.f && !IsThereEntityOfType(entity_type::Bread))
+	   TimeFromComletingLevel == 0.f && !IsThereEntityOfType(entity_type::Bread) &&
+	   CurrentLevel != 12)
 	{
 		BeginTutorialWindow(30.f, 30.f, "Reset");
 		ImGui::TextUnformatted("R - Reset level");
 		ImGui::End();
 	}
 
-	#define EDITOR 1 
+	#define EDITOR 0 
 	#if EDITOR
 	ImGui::Begin("Editor");
 	
@@ -954,7 +1023,7 @@ UpdateAndRender()
 	}
 
 	for(u32 Level = 1;
-	    Level <= 9;
+	    Level <= 12;
 		++Level)
 	{
 		char Name[50];

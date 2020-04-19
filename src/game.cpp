@@ -1,3 +1,4 @@
+#include <algorithm>
 
 struct wizard
 {
@@ -12,6 +13,7 @@ struct wizard
 
 struct furnace
 {
+	b32 Complete;
 };
 
 struct bread
@@ -29,6 +31,7 @@ struct entity
 {
 	v2i Pos;
 	entity_type Type;
+	b32 Alive;
 
 	union
 	{
@@ -39,11 +42,19 @@ struct entity
 
 #define MAX_ENTITIES 50 
 
+struct wall
+{
+	i32 X, Y;
+};
+
 struct world
 {
 	entity* Entities;
-	u32 Used;
-	u32 ActiveFurnaces, AllFurnaces;
+	wall* Walls;
+	u32 UsedEntities;
+	u32 DeadEntities;
+	u32 CompleteFurnaces, AllFurnaces;
+	u32 UsedWalls;
 };
 
 global wizard Wizard;
@@ -53,7 +64,9 @@ global u32 QuadVao;
 global u32 QuadShader;
 
 global u32 FurnaceTex;
+global u32 CompleteFurnaceTex;
 global u32 BreadTex;
+global u32 WallTex;
 
 global constexpr f32 BreadMovementDelay = 0.2f;
 
@@ -61,34 +74,53 @@ global u32 CurrentLevel = 1;
 global char* Map = null;
 
 global char Map1[17 * 9] = 
-"................"
-"................"
-".......f........"
-"................"
-"................"
-"................"
-".......p........"
-"................"
-"................";
+"wwwwwwwwwwwwwwww"
+"w..............w"
+"w......f.......w"
+"w..............w"
+"w..............w"
+"w..............w"
+"w......p.......w"
+"w..............w"
+"wwwwwwwwwwwwwwww";
 
 global char Map2[17 * 9] = 
-"................"
-"................"
-".f.f...f........"
-"................"
-"................"
-"................"
-".......p........"
-"................"
-"................";
+"wwwwwwwwwwwwwwww"
+"w..............w"
+"w......f.......w"
+"w...ww.....f...w"
+"w..............w"
+"w..............w"
+"w......p.......w"
+"w..............w"
+"wwwwwwwwwwwwwwww";
 
 static void
 AddEntity(const entity& Entity)
 {
-	assert(World.Used < MAX_ENTITIES);
+	assert(World.UsedEntities < MAX_ENTITIES);
 
-	*(World.Entities + World.Used) = Entity;
-	++World.Used;
+	*(World.Entities + World.UsedEntities) = Entity;
+	++World.UsedEntities;
+}
+
+static void
+RemoveEntity(u32 EntityIndex)
+{
+	++World.DeadEntities;
+	World.Entities[EntityIndex].Alive = false;
+}
+
+static void
+SortAliveEntities()
+{
+	World.UsedEntities -= World.DeadEntities;
+	World.DeadEntities = 0;
+	std::sort(World.Entities, World.Entities + World.UsedEntities,
+	[](const entity& A, const entity& B)
+	{
+		return !A.Alive;	
+	});	
 }
 
 static void
@@ -96,20 +128,28 @@ InitLevel(u32 Level)
 {
 	switch(Level)
 	{
-		case 1: Map = Map1; break;
-		case 2: Map = Map2; break;
+		case 1: {
+			Map = Map1;	
+			Wizard.Breads = 1;
+		} break;
+
+		case 2: {
+			Map = Map2;	
+			Wizard.Breads = 2;
+		} break;
 	}
 
-	World.Used = 0;	
+	World.UsedEntities = 0;	
 	World.AllFurnaces = 0;
-	World.ActiveFurnaces = 0;
+	World.CompleteFurnaces = 0;
+	World.UsedWalls = 0;
 
 	// draw tilemap
-	for(u32 Y = 0;
+	for(i32 Y = 0;
 	    Y < 9;
 	    ++Y)
 	{	
-		for(u32 X = 0;
+		for(i32 X = 0;
 			X < 16;
 			++X)
 		{
@@ -128,8 +168,15 @@ InitLevel(u32 Level)
 						entity Furnace;
 						Furnace.Pos = V2i(X, Y);
 						Furnace.Type = entity_type::Furnace;
+						Furnace.Alive = true;
+						Furnace.Furnace.Complete = false;
 						AddEntity(Furnace);
-					}
+					} break;
+
+					case 'w': {
+						*(World.Walls + World.UsedWalls) = {X, Y};
+						++World.UsedWalls;
+					} break;
 
 					default: continue;
 				}
@@ -157,9 +204,12 @@ InitApp()
 	Wizard.Breads = 2;
 
 	FurnaceTex = LoadTexture("resources/textures/furnace.png");
+	CompleteFurnaceTex = LoadTexture("resources/textures/completeFurnace.png");
 	BreadTex = LoadTexture("resources/textures/bread.png");
+	WallTex = LoadTexture("resources/textures/wall.png");
 
 	World.Entities = cast<entity*>(malloc(MAX_ENTITIES * sizeof(entity)));
+	World.Walls = cast<wall*>(malloc(16 * 9 * sizeof(wall)));
 
 	InitLevel(1);
 
@@ -196,31 +246,81 @@ DrawQuad(v2i Pos, u32 Texture)
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
+static b8
+IsWall(v2i Pos)
+{
+	for(u32 WallIndex = 0;
+	    WallIndex < World.UsedWalls;
+		++WallIndex)
+	{
+		wall& Wall = World.Walls[WallIndex];
+		if(Wall.X == Pos.X() && Wall.Y == Pos.Y())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static b8
+IsFurnace(v2i Pos)
+{
+	for(u32 EntityIndex = 0;
+	    EntityIndex < World.UsedEntities;
+		++EntityIndex)
+	{
+		auto& Entity = World.Entities[EntityIndex];
+		if(Entity.Pos == Pos && Entity.Type == entity_type::Furnace)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static b8
+IsCollision(v2i Pos)
+{
+	return IsWall(Pos) || IsFurnace(Pos);
+}
+
 static void
-UpdateBread(entity& Entity)
+UpdateBread(entity& Entity, u32 BreadEntityIndex)
 {
 	auto& Bread = Entity.Bread;
 
 	Bread.TimeFromLastMove += Dt;
 	if(Bread.TimeFromLastMove > BreadMovementDelay)
 	{
+		if(IsCollision(Entity.Pos))
+		{
+			RemoveEntity(BreadEntityIndex);
+			return;
+		}
+
 		Entity.Pos += Entity.Bread.Dir;
 		Bread.TimeFromLastMove = 0.f;
+			
 
 		for(u32 EntityIndex = 0;
-			EntityIndex < World.Used;
+			EntityIndex < World.UsedEntities;
 			++EntityIndex)
 		{
 			auto& Furnace = World.Entities[EntityIndex];
 			if(Furnace.Type == entity_type::Furnace &&
-			   Furnace.Pos == Entity.Pos)
+			   Furnace.Pos == Entity.Pos &&
+			   !Furnace.Furnace.Complete)
 			{
-				++World.ActiveFurnaces;
-				printf("COMPLETE!");
-				if(World.ActiveFurnaces == World.AllFurnaces)
+				Furnace.Furnace.Complete = true;
+				++World.CompleteFurnaces;
+				if(World.CompleteFurnaces == World.AllFurnaces)
 				{
 					++CurrentLevel;
 					InitLevel(CurrentLevel);	
+				}
+				else
+				{
+					RemoveEntity(EntityIndex);
 				}
 			}
 		}
@@ -232,7 +332,14 @@ UpdateBread(entity& Entity)
 static void
 UpdateFurnace(entity& Entity)
 {
-	DrawQuad(Entity.Pos, FurnaceTex);
+	if(Entity.Furnace.Complete)
+	{
+		DrawQuad(Entity.Pos, CompleteFurnaceTex);
+	}
+	else
+	{
+		DrawQuad(Entity.Pos, FurnaceTex);
+	}
 }
 
 static void
@@ -242,31 +349,31 @@ UpdateAndRender()
 	if(Wizard.TimeFromMovementPressedKey > 0.14f)
 	{
 	    if(glfwGetKey(Window, GLFW_KEY_A) == GLFW_PRESS &&
-		   Wizard.Pos.X() > 0)
+		   !IsCollision(Wizard.Pos + V2i(-1, 0)))
 		{
 			Wizard.Dir = V2i(-1, 0);
 			Wizard.Pos += Wizard.Dir;
 			Wizard.TimeFromMovementPressedKey = 0.f;
 			Wizard.CurrentTex = Wizard.LeftTex;
 		}
-		if(glfwGetKey(Window, GLFW_KEY_D) == GLFW_PRESS &&
-		   Wizard.Pos.X() < 16)
+		else if(glfwGetKey(Window, GLFW_KEY_D) == GLFW_PRESS &&
+		        !IsCollision(Wizard.Pos + V2i(1, 0)))
 		{
 			Wizard.Dir = V2i(1, 0);
 			Wizard.Pos += Wizard.Dir;
 			Wizard.TimeFromMovementPressedKey = 0.f;
 			Wizard.CurrentTex = Wizard.RightTex;
 		}
-		if(glfwGetKey(Window, GLFW_KEY_W) == GLFW_PRESS &&
-		   Wizard.Pos.Y() > 0)
+		else if(glfwGetKey(Window, GLFW_KEY_W) == GLFW_PRESS &&
+		        !IsCollision(Wizard.Pos + V2i(0, -1)))
 		{
 			Wizard.Dir = V2i(0, -1);
 			Wizard.Pos += Wizard.Dir;
 			Wizard.TimeFromMovementPressedKey = 0.f;
 			Wizard.CurrentTex = Wizard.BackTex;
 		}
-		if(glfwGetKey(Window, GLFW_KEY_S) == GLFW_PRESS &&
-		   Wizard.Pos.Y() < 8)
+		else if(glfwGetKey(Window, GLFW_KEY_S) == GLFW_PRESS &&
+		        !IsCollision(Wizard.Pos + V2i(0, 1)))
 		{
 			Wizard.Dir = V2i(0, 1);
 			Wizard.Pos += Wizard.Dir;
@@ -286,6 +393,7 @@ UpdateAndRender()
 			entity Entity;
 			Entity.Pos = Wizard.Pos + Wizard.Dir;
 			Entity.Type = entity_type::Bread;
+			Entity.Alive = true;
 			Entity.Bread.Dir = Wizard.Dir;
 			Entity.Bread.TimeFromLastMove = 0.f;
 			AddEntity(Entity);
@@ -299,29 +407,44 @@ UpdateAndRender()
 		Wizard.TimeFromSpellPressedKey += Dt;
 	}
 
+	if(glfwGetKey(Window, GLFW_KEY_R) == GLFW_PRESS)
+	{
+		InitLevel(CurrentLevel);
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(QuadShader);
 	glBindVertexArray(QuadVao);
 
+	// draw walls
+	for(u32 WallIndex = 0;
+	    WallIndex < World.UsedWalls;
+	    ++WallIndex)
+	{	
+		wall& Wall = World.Walls[WallIndex];
+		DrawQuad(V2i(Wall.X, Wall.Y), WallTex);
+	}
+
 	// update and draw entities
 	DrawQuad(Wizard.Pos, Wizard.CurrentTex);
 
 	for(u32 EntityIndex = 0;
-	    EntityIndex < World.Used;
+	    EntityIndex < World.UsedEntities;
 		++EntityIndex)
 	{
 		auto& Entity = World.Entities[EntityIndex];
 		
 		switch(Entity.Type)
 		{
-			case entity_type::Bread: UpdateBread(Entity); break;
+			case entity_type::Bread: UpdateBread(Entity, EntityIndex); break;
 			case entity_type::Furnace: UpdateFurnace(Entity); break;
 
 			default: assert(true);
 		}
 	}
+
+	SortAliveEntities();
 
 	#define EDITOR 1
 	#if EDITOR
@@ -334,8 +457,8 @@ UpdateAndRender()
 	DEBUG_INFO(sprintf(Text, "Player pos: %i %i", Wizard.Pos.X(), Wizard.Pos.Y()));
 	DEBUG_INFO(sprintf(Text, "Breads: %u", Wizard.Breads));
 	DEBUG_INFO(sprintf(Text, "CurrentLevel: %u", CurrentLevel));
-	DEBUG_INFO(sprintf(Text, "Number of entities: %u", World.Used));
-	DEBUG_INFO(sprintf(Text, "Active furnaces: %u", World.ActiveFurnaces));
+	DEBUG_INFO(sprintf(Text, "Number of entities: %u", World.UsedEntities));
+	DEBUG_INFO(sprintf(Text, "Complete furnaces: %u", World.CompleteFurnaces));
 	DEBUG_INFO(sprintf(Text, "All furnaces: %u", World.AllFurnaces));
 
 	if(ImGui::Button("More Bread"))

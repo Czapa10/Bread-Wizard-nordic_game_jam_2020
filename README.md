@@ -21,3 +21,6 @@ Renderer works at top of OpenGL.
 - stb_image https://github.com/nothings/stb
 - GLFW https://www.glfw.org/
 - GLEW http://glew.sourceforge.net/
+
+# Screen shot
+![image](https://user-images.githubusercontent.com/39434914/79694940-0a5e7080-8274-11ea-88c1-a14c90784fdd.png)

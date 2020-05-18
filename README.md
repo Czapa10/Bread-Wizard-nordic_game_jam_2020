@@ -6,8 +6,8 @@ It's a sokoban like puzzle game in which you have to fill all the furnaces with 
 https://czapa10.itch.io/breadwizard
 
 # Credits
-Grzegorz "Czapa" Bednorz - programming, design, graphics
-Jerzy Wujczyk - sound and music
+- Grzegorz "Czapa" Bednorz - programming, design, graphics
+- Jerzy Wujczyk - sound and music
 
 # Code
 It's written in highly Data Oriented Style. It's mostly C but I use a few C++ features.
